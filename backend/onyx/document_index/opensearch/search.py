@@ -305,6 +305,41 @@ class DocumentQuery:
         return final_delete_query
 
     @staticmethod
+    def delete_from_document_ids_query(
+        document_ids: list[str],
+        tenant_state: TenantState,
+    ) -> dict[str, Any]:
+        """Delete-by-query matching all chunks of the given documents in this
+        tenant, hidden chunks included. Indexing uses it to clear a whole batch
+        of documents in one request."""
+        filter_clauses = DocumentQuery._get_search_filters(
+            tenant_state=tenant_state,
+            # Delete hidden docs too.
+            include_hidden=True,
+            access_control_list=None,
+            cc_pair_access=None,
+            source_types=[],
+            tags=[],
+            document_sets=[],
+            project_id_filter=None,
+            persona_id_filter=None,
+            created_at_range=None,
+            updated_at_range=None,
+            min_chunk_index=None,
+            max_chunk_index=None,
+            max_chunk_size=None,
+        )
+        filter_clauses.append({"terms": {DOCUMENT_ID_FIELD_NAME: list(document_ids)}})
+        final_delete_query: dict[str, Any] = {
+            "query": {"bool": {"filter": filter_clauses}},
+            "timeout": f"{DEFAULT_OPENSEARCH_QUERY_TIMEOUT_S}s",
+        }
+        if not OPENSEARCH_PROFILING_DISABLED:
+            final_delete_query["profile"] = True
+
+        return final_delete_query
+
+    @staticmethod
     def delete_port_written_chunks_query(
         document_ids: list[str],
         tenant_state: TenantState,
